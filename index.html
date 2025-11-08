@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ar Puro Dourados</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+  <!-- Estilos -->
+  <style>
+    :root {
+      --verde-escuro: #1e836c;
+      --verde-claro: #e3f2ed;
+      --fundo: #f4f9f4;
+      --sombra: rgba(0, 0, 0, 0.1);
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: var(--fundo);
+      margin: 0;
+      color: #333;
+    }
+
+    header {
+      background: linear-gradient(90deg, #1e836c, #28a87d);
+      color: white;
+      text-align: center;
+      padding: 20px 0;
+      font-size: 1.7em;
+      font-weight: bold;
+      letter-spacing: 0.5px;
+      box-shadow: 0 2px 6px var(--sombra);
+    }
+
+    .tabs {
+      display: flex;
+      justify-content: center;
+      background: var(--verde-claro);
+      padding: 8px 0;
+      gap: 10px;
+    }
+
+    .tab {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 20px;
+      border-radius: 8px;
+      background: white;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      box-shadow: 0 1px 4px var(--sombra);
+    }
+
+    .tab:hover {
+      background: #cde7df;
+    }
+
+    .tab.active {
+      background: var(--verde-escuro);
+      color: white;
+      transform: scale(1.05);
+    }
+
+    .alert {
+      background: #e53935;
+      color: white;
+      text-align: center;
+      padding: 15px;
+      margin: 20px auto;
+      width: 90%;
+      border-radius: 10px;
+      font-weight: 600;
+      box-shadow: 0 2px 8px var(--sombra);
+      transition: opacity 0.4s ease;
+    }
+
+    .alert small {
+      display: block;
+      font-weight: normal;
+      font-size: 0.9em;
+      margin-top: 4px;
+    }
+
+    #map {
+      height: 350px;
+      width: 90%;
+      margin: 0 auto;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      transition: opacity 0.5s ease;
+    }
+
+    .legend {
+      background: white;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 0.9em;
+      box-shadow: 0 0 5px rgba(0,0,0,0.2);
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+    }
+
+    .legend div {
+      display: flex;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+
+    .legend span {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      margin-right: 6px;
+      border-radius: 50%;
+    }
+
+    .tip {
+      width: 85%;
+      margin: 25px auto;
+      background: #fffbe6;
+      border: 1px solid #ffd54f;
+      border-radius: 10px;
+      padding: 15px;
+      color: #333;
+      font-size: 0.95em;
+      box-shadow: 0 0 8px var(--sombra);
+      transition: all 0.3s ease;
+    }
+
+    .tip:hover {
+      transform: scale(1.01);
+    }
+
+    footer {
+      text-align: center;
+      font-size: 0.8em;
+      color: #888;
+      margin-top: 25px;
+      margin-bottom: 10px;
+    }
+
+    .refresh-btn {
+      display: block;
+      margin: 15px auto;
+      padding: 10px 20px;
+      background: var(--verde-escuro);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 6px var(--sombra);
+    }
+
+    .refresh-btn:hover {
+      background: #28a87d;
+      transform: scale(1.05);
+    }
+  </style>
+</head>
+
+<body>
+  <header>🌿 Ar Puro Dourados</header>
+
+  <div class="tabs">
+    <div class="tab active" id="tabHoje" role="button" tabindex="0">📅 Hoje</div>
+    <div class="tab" id="tabSemana" role="button" tabindex="0">📆 Semana Passada</div>
+  </div>
+
+  <div class="alert" id="alerta">
+    ⚠️ ALERTA: Nível de Poluição Moderado
+    <small>Tendência: +5% em relação a ontem 📈</small>
+  </div>
+
+  <div id="map"></div>
+
+  <button class="refresh-btn" id="btnAtualizar">🔄 Atualizar Dados</button>
+
+  <div class="tip" id="dica">
+    <b>Dica Verde:</b> Use transporte alternativo ou compartilhe caronas para reduzir emissões! 🚴‍♂️
+  </div>
+
+  <footer>*Dados simulados — protótipo de apresentação*</footer>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <script>
+    const map = L.map('map').setView([-22.2231, -54.8120], 13);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    let marcadores = [];
+    function limparMarcadores() {
+      marcadores.forEach(m => map.removeLayer(m));
+      marcadores = [];
+    }
+
+    const dados = {
+      hoje: {
+        alerta: "⚠️ ALERTA: Nível de Poluição Moderado",
+        tendencia: "Tendência: +5% em relação a ontem 📈",
+        dica: "<b>Dica Verde:</b> Use transporte alternativo ou compartilhe caronas para reduzir emissões! 🚴‍♂️",
+        pontos: [
+          { coords: [-22.221, -54.818], status: 'Ruim', cor: 'red' },
+          { coords: [-22.230, -54.810], status: 'Moderado', cor: 'orange' },
+          { coords: [-22.215, -54.805], status: 'Bom', cor: 'green' }
+        ]
+      },
+      semana: {
+        alerta: "💨 Boa notícia: Níveis de Poluição Baixos",
+        tendencia: "Tendência: -12% em relação à semana anterior ✅",
+        dica: "<b>Dica Verde:</b> Continue praticando hábitos sustentáveis! 🌱",
+        pontos: [
+          { coords: [-22.220, -54.817], status: 'Bom', cor: 'green' },
+          { coords: [-22.230, -54.811], status: 'Bom', cor: 'green' },
+          { coords: [-22.215, -54.806], status: 'Moderado', cor: 'orange' }
+        ]
+      }
+    };
+
+    function atualizarMapa(tipo) {
+      limparMarcadores();
+      const { alerta, tendencia, dica, pontos } = dados[tipo];
+
+      const alertaDiv = document.getElementById("alerta");
+      alertaDiv.style.opacity = 0;
+      setTimeout(() => {
+        alertaDiv.innerHTML = `${alerta}<small>${tendencia}</small>`;
+        alertaDiv.style.opacity = 1;
+      }, 300);
+
+      const dicaDiv = document.getElementById("dica");
+      dicaDiv.innerHTML = dica;
+
+      let bounds = [];
+      pontos.forEach(p => {
+        const m = L.circleMarker(p.coords, {
+          radius: 10,
+          color: p.cor,
+          fillColor: p.cor,
+          fillOpacity: 0.8
+        }).addTo(map).bindPopup(`<b>Nível:</b> ${p.status}`);
+        marcadores.push(m);
+        bounds.push(p.coords);
+      });
+
+      if (bounds.length) map.fitBounds(bounds, { padding: [50, 50] });
+      setTimeout(() => map.invalidateSize(), 300);
+    }
+
+    const legend = L.control({ position: "bottomright" });
+    legend.onAdd = () => {
+      const div = L.DomUtil.create("div", "legend");
+      div.innerHTML = `
+        <div><span style="background:red"></span> Ruim</div>
+        <div><span style="background:orange"></span> Moderado</div>
+        <div><span style="background:green"></span> Bom</div>
+      `;
+      return div;
+    };
+    legend.addTo(map);
+
+    const tabHoje = document.getElementById("tabHoje");
+    const tabSemana = document.getElementById("tabSemana");
+
+    function trocarAba(tipo) {
+      tabHoje.classList.toggle("active", tipo === "hoje");
+      tabSemana.classList.toggle("active", tipo === "semana");
+      atualizarMapa(tipo);
+    }
+
+    tabHoje.onclick = () => trocarAba("hoje");
+    tabSemana.onclick = () => trocarAba("semana");
+
+    document.getElementById("btnAtualizar").onclick = () => {
+      const tipoAtivo = tabHoje.classList.contains("active") ? "hoje" : "semana";
+      atualizarMapa(tipoAtivo);
+    };
+
+    atualizarMapa("hoje");
+  </script>
+</body>
+</html>
